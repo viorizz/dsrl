@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Threading;
+using System.IO;
 using DSRL.Core.Controllers;
 using DSRL.Core.Configuration;
 using DSRL.Core.Enums;
 using DSRL.Core.Utilities;
+using DSRL.Core.Diagnostics;
 
 namespace DSRL.UI.Forms
 {
@@ -22,6 +24,8 @@ namespace DSRL.UI.Forms
         private GroupBox triggerGroup;
         private Panel deadzonePreview;
         private Button refreshButton;
+        private Button diagnosticButton;
+        private Button alternativeDetectionButton;
         private TrackBar deadzoneRadiusTrackBar;
         private ComboBox deadzoneShapeComboBox;
         private TrackBar leftTriggerRigidityTrackBar;
@@ -74,7 +78,7 @@ namespace DSRL.UI.Forms
 
             // Form settings
             this.Text = "DSRL - DualSense Controller Manager";
-            this.Size = new Size(600, 500);
+            this.Size = new Size(600, 540); // Made taller for new buttons
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -82,7 +86,7 @@ namespace DSRL.UI.Forms
             // Status label
             statusLabel = new Label
             {
-                Location = new Point(10, 435),
+                Location = new Point(10, 475), // Moved down for new buttons
                 Size = new Size(580, 20),
                 TextAlign = ContentAlignment.MiddleLeft,
                 Text = "Ready."
@@ -99,11 +103,21 @@ namespace DSRL.UI.Forms
             controllerSelector = new ComboBox
             {
                 Location = new Point(160, 15),
-                Size = new Size(300, 25),
+                Size = new Size(140, 25),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             controllerSelector.SelectedIndexChanged += ControllerSelector_SelectedIndexChanged;
             
+            // Diagnostic button
+            diagnosticButton = new Button
+            {
+                Location = new Point(310, 15),
+                Size = new Size(150, 25),
+                Text = "Run HID Diagnostic"
+            };
+            diagnosticButton.Click += DiagnosticButton_Click;
+            
+            // Refresh button
             refreshButton = new Button
             {
                 Location = new Point(470, 15),
@@ -246,12 +260,33 @@ namespace DSRL.UI.Forms
                 BackColor = Color.LightGray
             };
             
+            // Alternative detection button
+            alternativeDetectionButton = new Button
+            {
+                Location = new Point(10, 435),
+                Size = new Size(280, 30),
+                Text = "Try Alternative Detection"
+            };
+            alternativeDetectionButton.Click += AlternativeDetectionButton_Click;
+
+            Button targetedDetectionButton = new Button
+            {
+                Location = new Point(300, 435),
+                Size = new Size(280, 30),
+                Text = "Try Targeted Detection",
+                BackColor = Color.LightGreen // Make it stand out
+            };
+            targetedDetectionButton.Click += TargetedDetectionButton_Click;
+            
             // Add controls to form
             this.Controls.Add(controllerLabel);
             this.Controls.Add(controllerSelector);
+            this.Controls.Add(diagnosticButton);
             this.Controls.Add(refreshButton);
             this.Controls.Add(deadzoneGroup);
             this.Controls.Add(triggerGroup);
+            this.Controls.Add(alternativeDetectionButton);
+            this.Controls.Add(targetedDetectionButton);
             this.Controls.Add(statusLabel);
             
             // Add controls to deadzone group
@@ -325,7 +360,7 @@ namespace DSRL.UI.Forms
                 Logger.Log("Refreshing controller list...");
                 
                 // Use the DualSenseAPI to detect controllers
-                connectedControllers = DualSenseAPI.GetConnectedControllers();
+                connectedControllers = DualSenseAPI.GetTargetedControllers();
                 
                 // Load saved profiles for each controller
                 foreach (var controller in connectedControllers)
@@ -553,6 +588,159 @@ namespace DSRL.UI.Forms
             
             // Current joystick position (center for now)
             g.FillEllipse(Brushes.Blue, centerX - 5, centerY - 5, 10, 10);
+        }
+        
+        // New diagnostic button handler
+        private void DiagnosticButton_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Create diagnostics folder if it doesn't exist
+                string diagnosticsFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    "DSRL_Diagnostics");
+                
+                if (!Directory.Exists(diagnosticsFolder))
+                {
+                    Directory.CreateDirectory(diagnosticsFolder);
+                }
+                
+                // Generate filename with timestamp
+                string fileName = $"HIDReport_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                string fullPath = Path.Combine(diagnosticsFolder, fileName);
+                
+                // Generate and save report
+                HIDDiagnostic.SaveReportToFile(fullPath);
+                
+                // Show success message
+                MessageBox.Show(
+                    $"HID Diagnostic report saved to:\n{fullPath}\n\nPlease check this file to see all detected devices.", 
+                    "Diagnostic Complete", 
+                    MessageBoxButtons.OK, 
+                    MessageBoxIcon.Information);
+                    
+                // Try to open the file
+                try
+                {
+                    System.Diagnostics.Process.Start("notepad.exe", fullPath);
+                }
+                catch
+                {
+                    // Fallback if notepad can't be opened
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error running diagnostics: {ex.Message}", 
+                    "Diagnostic Error", 
+                    MessageBoxButtons.OK, 
+                    MessageBoxIcon.Error);
+            }
+        }
+        
+        // New alternative detection button handler
+        private void AlternativeDetectionButton_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                statusLabel.Text = "Searching for controllers using Windows API...";
+                Application.DoEvents(); // Update UI
+                
+                // Clear existing controllers
+                controllerSelector.Items.Clear();
+                connectedControllers.Clear();
+                
+                // Try the Windows API based detection
+                connectedControllers = WindowsControllerDetection.DetectDualSenseControllers();
+                
+                if (connectedControllers.Count > 0)
+                {
+                    foreach (var controller in connectedControllers)
+                    {
+                        var info = controller.GetControllerInfo();
+                        string connectionType = info?.IsWireless == true ? "Wireless" : "USB";
+                        controllerSelector.Items.Add($"DualSense Controller ({controller.SerialNumber}) [{connectionType}]");
+                    }
+                    
+                    controllerSelector.SelectedIndex = 0;
+                    statusLabel.Text = $"Found {connectedControllers.Count} controller(s) using alternative method!";
+                }
+                else
+                {
+                    statusLabel.Text = "No controllers found with alternative method either.";
+                    
+                    // Add debug controller if in debug mode
+                    if (System.Diagnostics.Debugger.IsAttached)
+                    {
+                        connectedControllers.Add(new DualSenseController
+                        {
+                            SerialNumber = "DEMO123456",
+                            IsConnected = true
+                        });
+                        
+                        controllerSelector.Items.Add($"DualSense Controller (DEMO123456) [DEBUG]");
+                        controllerSelector.SelectedIndex = 0;
+                        statusLabel.Text = "Debug mode: Using mock controller.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error in alternative detection: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                statusLabel.Text = "Error in alternative detection.";
+            }
+        }
+        private void TargetedDetectionButton_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                statusLabel.Text = "Searching for DualSense controllers using targeted method...";
+                Application.DoEvents(); // Update UI
+                
+                // Clear existing controllers
+                controllerSelector.Items.Clear();
+                connectedControllers.Clear();
+                
+                // Try the targeted detection method
+                connectedControllers = DualSenseAPI.GetTargetedControllers();
+                
+                if (connectedControllers.Count > 0)
+                {
+                    foreach (var controller in connectedControllers)
+                    {
+                        var info = controller.GetControllerInfo();
+                        string connectionType = info?.IsWireless == true ? "Wireless" : "USB";
+                        controllerSelector.Items.Add($"DualSense Controller ({controller.SerialNumber}) [{connectionType}]");
+                    }
+                    
+                    controllerSelector.SelectedIndex = 0;
+                    statusLabel.Text = $"Found {connectedControllers.Count} controller(s) using targeted method!";
+                }
+                else
+                {
+                    statusLabel.Text = "No controllers found with targeted method either.";
+                    
+                    // Add debug controller if in debug mode
+                    if (System.Diagnostics.Debugger.IsAttached)
+                    {
+                        connectedControllers.Add(new DualSenseController
+                        {
+                            SerialNumber = "DEMO123456",
+                            IsConnected = true
+                        });
+                        
+                        controllerSelector.Items.Add($"DualSense Controller (DEMO123456) [DEBUG]");
+                        controllerSelector.SelectedIndex = 0;
+                        statusLabel.Text = "Debug mode: Using mock controller.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error in targeted detection: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                statusLabel.Text = "Error in targeted detection.";
+            }
         }
     }
 }

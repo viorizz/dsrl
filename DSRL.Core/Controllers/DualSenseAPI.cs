@@ -96,136 +96,111 @@ namespace DSRL.Core.Controllers
         // Cache of identified controllers
         private static Dictionary<string, ControllerInfo> controllerCache = new Dictionary<string, ControllerInfo>();
         
-        /// <summary>
-        /// Detects connected DualSense controllers
-        /// </summary>
+        
         /// <returns>List of DualSenseController objects</returns>
-        public static List<DualSenseController> GetConnectedControllers()
+        // A more reliable approach using HidSharp directly
+
+        // Add this method to DualSenseAPI.cs
+
+        /// <summary>
+        /// Detects controllers based on exact patterns found in diagnostic
+        /// </summary>
+        public static List<DualSenseController> GetTargetedControllers()
         {
+            Console.WriteLine("Starting targeted DualSense controller detection...");
             List<DualSenseController> controllers = new List<DualSenseController>();
             
             try
             {
-                // Get the HID GUID
-                Guid hidGuid;
-                HidD_GetHidGuid(out hidGuid);
+                // Get all connected devices
+                var deviceList = HidSharp.DeviceList.Local;
+                var hidDeviceList = deviceList.GetHidDevices().ToArray();
                 
-                // Get the device info set
-                IntPtr deviceInfoSet = SetupDiGetClassDevs(ref hidGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+                Console.WriteLine($"Found {hidDeviceList.Length} HID devices");
                 
-                if (deviceInfoSet == IntPtr.Zero)
+                foreach (var device in hidDeviceList)
                 {
-                    throw new Exception("Failed to get device info set");
-                }
-                
-                try
-                {
-                    // Enumerate all HID devices
-                    SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new SP_DEVICE_INTERFACE_DATA();
-                    deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData);
-                    
-                    uint deviceIndex = 0;
-                    
-                    while (SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref hidGuid, deviceIndex, ref deviceInterfaceData))
+                    // Look specifically for DualSense pattern from diagnostic
+                    if (device.VendorID == 0x054C && device.ProductID == 0x0CE6)
                     {
-                        uint requiredSize = 0;
+                        Console.WriteLine($"Found potential DualSense: {device.DevicePath}");
                         
-                        // Get the size of the device interface detail structure
-                        SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, IntPtr.Zero, 0, out requiredSize, IntPtr.Zero);
-                        
-                        // Allocate memory for the device interface detail structure
-                        IntPtr deviceInterfaceDetailData = Marshal.AllocHGlobal((int)requiredSize);
-                        
-                        try
+                        // Check if path contains mi_03 which seems to be the interface we need
+                        if (device.DevicePath.Contains("mi_03"))
                         {
-                            // Set the cbSize field
-                            Marshal.WriteInt32(deviceInterfaceDetailData, IntPtr.Size == 8 ? 8 : 5);
+                            Console.WriteLine("🎮 FOUND DUALSENSE CONTROLLER ON INTERFACE 3!");
                             
-                            // Get the device interface detail
-                            if (SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, deviceInterfaceDetailData, requiredSize, out requiredSize, IntPtr.Zero))
+                            // Generate a unique serial number based on the device path
+                            string serialNumber = $"DS-{Math.Abs(device.DevicePath.GetHashCode() % 1000000):D6}";
+                            
+                            // Create controller info
+                            var controllerInfo = new ControllerInfo
                             {
-                                // Get the device path
-                                string? devicePath = Marshal.PtrToStringAuto(IntPtr.Add(deviceInterfaceDetailData, IntPtr.Size == 8 ? 8 : 5));
-                                if (string.IsNullOrEmpty(devicePath))
-                                    continue;
-                                
-                                // Check if this is a DualSense controller
-                                if (IsDualSenseController(devicePath))
-                                {
-                                    
-                                    if (!controllerCache.TryGetValue(devicePath, out var controllerInfo))
-                                    {
-                                        // Create a new controller info with null checks
-                                        var devicePathSafe = devicePath ?? string.Empty;
-                                        controllerInfo = new ControllerInfo
-                                        {
-                                            DevicePath = devicePathSafe,
-                                            SerialNumber = GetSerialNumber(devicePathSafe),
-                                            IsWireless = devicePathSafe.ToLower().Contains("bluetooth")
-                                        };
-                                        
-                                        controllerCache[devicePathSafe] = controllerInfo;
-                                    }
-                                    
-                                    // Create a DualSenseController object
-                                    DualSenseController controller = new DualSenseController
-                                    {
-                                        SerialNumber = controllerInfo.SerialNumber,
-                                        IsConnected = true
-                                    };
-                                    
-                                    // Set the controller's internal info using the DTO conversion
-                                    controller.SetControllerInfo(controllerInfo.ToDTO());
-                                    
-                                    controllers.Add(controller);
-                                }
-                            }
+                                DevicePath = device.DevicePath,
+                                SerialNumber = serialNumber,
+                                IsWireless = true // Most likely wireless
+                            };
+                            
+                            controllerCache[device.DevicePath] = controllerInfo;
+                            
+                            // Create a controller object
+                            DualSenseController controller = new DualSenseController
+                            {
+                                SerialNumber = serialNumber,
+                                IsConnected = true
+                            };
+                            
+                            // Set the controller's info using DTO
+                            controller.SetControllerInfo(controllerInfo.ToDTO());
+                            controllers.Add(controller);
+                            
+                            Console.WriteLine($"Added controller with serial: {serialNumber}");
                         }
-                        finally
-                        {
-                            Marshal.FreeHGlobal(deviceInterfaceDetailData);
-                        }
-                        
-                        deviceIndex++;
                     }
                 }
-                finally
-                {
-                    SetupDiDestroyDeviceInfoList(deviceInfoSet);
-                }
+                
+                Console.WriteLine($"Found {controllers.Count} DualSense controllers");
             }
             catch (Exception ex)
             {
-                // Log or rethrow the exception
-                Console.WriteLine($"Error detecting controllers: {ex.Message}");
-                throw;
-            }
-            
-            // If we didn't find any controllers, create a mock controller for testing
-            if (controllers.Count == 0 && System.Diagnostics.Debugger.IsAttached)
-            {
-                controllers.Add(new DualSenseController
-                {
-                    SerialNumber = "DEMO123456",
-                    IsConnected = true
-                });
+                Console.WriteLine($"Error in targeted detection: {ex.Message}");
             }
             
             return controllers;
         }
         
         /// <summary>
-        /// Checks if a device is a DualSense controller
+        /// Checks if a device is a DualSense controller with improved detection
         /// </summary>
-        private static bool IsDualSenseController(string? devicePath)
+        private static bool IsDualSenseController(string devicePath)
         {
             if (string.IsNullOrEmpty(devicePath))
                 return false;
                 
-            return devicePath.ToLower().Contains("vid_054c&pid_0ce6") || 
-                devicePath.ToLower().Contains("dualsense");
+            string path = devicePath.ToLowerInvariant();
+            
+            // Based on diagnostic report, check for interface 3 specifically
+            if (path.Contains("vid_054c") && path.Contains("pid_0ce6") && path.Contains("mi_03"))
+            {
+                Console.WriteLine($"Found DualSense controller: {devicePath}");
+                return true;
+            }
+            
+            // Also check for other potential matches
+            bool hasSonyVID = path.Contains("vid_054c");
+            bool hasDualSensePID = path.Contains("pid_0ce6") || path.Contains("pid_0df2") || 
+                                path.Contains("pid_0ce7") || path.Contains("pid_0ce9");
+            bool hasControllerName = path.Contains("dualsense") || path.Contains("wireless controller");
+            
+            // More verbose logging to help with debugging
+            if (hasSonyVID && (hasDualSensePID || hasControllerName))
+            {
+                Console.WriteLine($"Found potential DualSense with alternative pattern: {devicePath}");
+                return true;
+            }
+            
+            return false;
         }
-        
         /// <summary>
         /// Gets the serial number of a device
         /// </summary>
