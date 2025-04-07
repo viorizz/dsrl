@@ -24,8 +24,8 @@ namespace DSRL.Core.Utilities
             try
             {
                 // Ensure directory exists
-                string directory = Path.GetDirectoryName(LogFilePath);
-                if (!Directory.Exists(directory))
+                string? directory = Path.GetDirectoryName(LogFilePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
                 }
@@ -41,7 +41,7 @@ namespace DSRL.Core.Utilities
                 // Silently fail if logging fails
             }
         }
-        
+                
         /// <summary>
         /// Log an error with exception details
         /// </summary>

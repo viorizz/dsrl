@@ -8,7 +8,7 @@ namespace DSRL.Core.Controllers
     /// </summary>
     public class DualSenseController
     {
-        public string SerialNumber { get; set; }
+        public string SerialNumber { get; set; } = string.Empty;
         public bool IsConnected { get; set; }
         public DeadzoneShape DeadzoneShape { get; set; } = DeadzoneShape.Circle;
         public int DeadzoneRadius { get; set; } = 10; // Percentage (0-100)

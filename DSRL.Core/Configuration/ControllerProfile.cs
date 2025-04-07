@@ -9,8 +9,8 @@ namespace DSRL.Core.Configuration
     [Serializable]
     public class ControllerProfile
     {
-        public string SerialNumber { get; set; }
-        public string ProfileName { get; set; }
+        public string SerialNumber { get; set; } = string.Empty;
+        public string ProfileName { get; set; } = string.Empty;
         public DeadzoneShape DeadzoneShape { get; set; }
         public int DeadzoneRadius { get; set; }
         public int LeftTriggerRigidity { get; set; }

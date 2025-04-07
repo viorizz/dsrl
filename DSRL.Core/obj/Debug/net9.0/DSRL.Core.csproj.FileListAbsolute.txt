@@ -3,3 +3,11 @@ G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.GeneratedMS
 G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.AssemblyInfoInputs.cache
 G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.AssemblyInfo.cs
 G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.csproj.CoreCompileInputs.cache
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.sourcelink.json
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\bin\Debug\net9.0\DSRL.Core.deps.json
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\bin\Debug\net9.0\DSRL.Core.dll
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\bin\Debug\net9.0\DSRL.Core.pdb
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.dll
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\refint\DSRL.Core.dll
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.pdb
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\ref\DSRL.Core.dll

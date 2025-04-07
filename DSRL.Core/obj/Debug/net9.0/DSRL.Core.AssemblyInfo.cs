@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DSRL.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cae147fdaefa4d158232d24602c1dcc8dbb80fd8")]
 [assembly: System.Reflection.AssemblyProductAttribute("DSRL.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DSRL.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

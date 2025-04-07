@@ -17,10 +17,10 @@ namespace DSRL.Core.Configuration
         private static readonly string ConfigFilePath = Path.Combine(ConfigFolderPath, "settings.xml");
         
         // Singleton instance
-        private static ConfigManager _instance;
+        private static ConfigManager? _instance;
         
         // Configuration data
-        public AppConfig Config { get; private set; }
+        public AppConfig Config { get; private set; } = new AppConfig();
         
         // Get singleton instance
         public static ConfigManager Instance
@@ -42,6 +42,20 @@ namespace DSRL.Core.Configuration
             // Initialize config
             LoadConfig();
         }
+
+        private AppConfig CreateDefaultConfig()
+        {
+            return new AppConfig
+            {
+                DefaultDeadzoneShape = DeadzoneShape.Circle,
+                DefaultDeadzoneRadius = 10,
+                DefaultLeftTriggerRigidity = 50,
+                DefaultRightTriggerRigidity = 50,
+                AutoApplySettings = true,
+                ShowControllerDebugInfo = false,
+                ControllerProfiles = Array.Empty<ControllerProfile>()
+            };
+        }
         
         /// <summary>
         /// Loads configuration from file or creates default config
@@ -62,7 +76,18 @@ namespace DSRL.Core.Configuration
                     using (FileStream fs = new FileStream(ConfigFilePath, FileMode.Open))
                     {
                         XmlSerializer serializer = new XmlSerializer(typeof(AppConfig));
-                        Config = (AppConfig)serializer.Deserialize(fs);
+                        // Fix for null warning with the safe cast pattern
+                        var deserialized = serializer.Deserialize(fs);
+                        if (deserialized is AppConfig config)
+                        {
+                            Config = config;
+                        }
+                        else
+                        {
+                            // Handle case where deserialization didn't produce an AppConfig
+                            Config = CreateDefaultConfig();
+                            Console.WriteLine("Config file exists but couldn't be deserialized properly. Using defaults.");
+                        }
                     }
                 }
                 else
@@ -117,7 +142,8 @@ namespace DSRL.Core.Configuration
                 // Save config to file
                 using (FileStream fs = new FileStream(ConfigFilePath, FileMode.Create))
                 {
-                    XmlSerializer serializer = new XmlSerializer(typeof(AppConfig));
+                    // No need to check serializer for null since constructor doesn't return null
+                    var serializer = new XmlSerializer(typeof(AppConfig));
                     serializer.Serialize(fs, Config);
                 }
             }
@@ -153,9 +179,10 @@ namespace DSRL.Core.Configuration
             
             if (!found)
             {
-                // Add new profile
-                Array.Resize(ref Config.ControllerProfiles, Config.ControllerProfiles.Length + 1);
-                Config.ControllerProfiles[Config.ControllerProfiles.Length - 1] = new ControllerProfile
+                // Add new profile - Create a temporary variable that we can modify with ref
+                var profiles = Config.ControllerProfiles;
+                Array.Resize(ref profiles, profiles.Length + 1);
+                profiles[profiles.Length - 1] = new ControllerProfile
                 {
                     SerialNumber = serialNumber,
                     ProfileName = profileName,
@@ -164,8 +191,8 @@ namespace DSRL.Core.Configuration
                     LeftTriggerRigidity = leftTriggerRigidity,
                     RightTriggerRigidity = rightTriggerRigidity
                 };
+                Config.ControllerProfiles = profiles;
             }
-            
             // Save config
             SaveConfig();
         }
@@ -173,7 +200,7 @@ namespace DSRL.Core.Configuration
         /// <summary>
         /// Gets a controller profile by serial number
         /// </summary>
-        public ControllerProfile GetControllerProfile(string serialNumber)
+        public ControllerProfile? GetControllerProfile(string serialNumber)
         {
             foreach (var profile in Config.ControllerProfiles)
             {

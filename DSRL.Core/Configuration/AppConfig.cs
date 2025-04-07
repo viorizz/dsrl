@@ -15,6 +15,6 @@ namespace DSRL.Core.Configuration
         public int DefaultRightTriggerRigidity { get; set; }
         public bool AutoApplySettings { get; set; }
         public bool ShowControllerDebugInfo { get; set; }
-        public ControllerProfile[] ControllerProfiles { get; set; }
+        public ControllerProfile[] ControllerProfiles { get; set; } = Array.Empty<ControllerProfile>();
     }
 }

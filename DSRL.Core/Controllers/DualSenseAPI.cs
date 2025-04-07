@@ -8,6 +8,19 @@ using DSRL.Core.Enums;
 namespace DSRL.Core.Controllers
 {
     /// <summary>
+    /// DTO for controller information that can be passed to and from the public API
+    /// </summary>
+    public class ControllerInfoDTO
+    {
+        // Initialize non-nullable string properties with empty string
+        public string SerialNumber { get; set; } = string.Empty;
+        public bool IsWireless { get; set; }
+        public DeadzoneShape DeadzoneShape { get; set; } = DeadzoneShape.Circle;
+        public int DeadzoneRadius { get; set; } = 10;
+        public int LeftTriggerRigidity { get; set; } = 50;
+        public int RightTriggerRigidity { get; set; } = 50;
+}
+    /// <summary>
     /// Handles low-level communication with DualSense controllers
     /// </summary>
     public class DualSenseAPI
@@ -132,25 +145,26 @@ namespace DSRL.Core.Controllers
                             if (SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, deviceInterfaceDetailData, requiredSize, out requiredSize, IntPtr.Zero))
                             {
                                 // Get the device path
-                                string devicePath = Marshal.PtrToStringAuto(IntPtr.Add(deviceInterfaceDetailData, IntPtr.Size == 8 ? 8 : 5));
+                                string? devicePath = Marshal.PtrToStringAuto(IntPtr.Add(deviceInterfaceDetailData, IntPtr.Size == 8 ? 8 : 5));
+                                if (string.IsNullOrEmpty(devicePath))
+                                    continue;
                                 
                                 // Check if this is a DualSense controller
                                 if (IsDualSenseController(devicePath))
                                 {
-                                    // Get or create controller info
-                                    ControllerInfo controllerInfo;
                                     
-                                    if (!controllerCache.TryGetValue(devicePath, out controllerInfo))
+                                    if (!controllerCache.TryGetValue(devicePath, out var controllerInfo))
                                     {
-                                        // Create a new controller info
+                                        // Create a new controller info with null checks
+                                        var devicePathSafe = devicePath ?? string.Empty;
                                         controllerInfo = new ControllerInfo
                                         {
-                                            DevicePath = devicePath,
-                                            SerialNumber = GetSerialNumber(devicePath),
-                                            IsWireless = devicePath.ToLower().Contains("bluetooth")
+                                            DevicePath = devicePathSafe,
+                                            SerialNumber = GetSerialNumber(devicePathSafe),
+                                            IsWireless = devicePathSafe.ToLower().Contains("bluetooth")
                                         };
                                         
-                                        controllerCache[devicePath] = controllerInfo;
+                                        controllerCache[devicePathSafe] = controllerInfo;
                                     }
                                     
                                     // Create a DualSenseController object
@@ -160,8 +174,8 @@ namespace DSRL.Core.Controllers
                                         IsConnected = true
                                     };
                                     
-                                    // Set the controller's internal info
-                                    controller.SetControllerInfo(controllerInfo);
+                                    // Set the controller's internal info using the DTO conversion
+                                    controller.SetControllerInfo(controllerInfo.ToDTO());
                                     
                                     controllers.Add(controller);
                                 }
@@ -203,21 +217,23 @@ namespace DSRL.Core.Controllers
         /// <summary>
         /// Checks if a device is a DualSense controller
         /// </summary>
-        private static bool IsDualSenseController(string devicePath)
+        private static bool IsDualSenseController(string? devicePath)
         {
-            // TODO: Implement proper VID/PID checking
-            // For now, just check if the path contains "dualsense" or specific VID/PID
+            if (string.IsNullOrEmpty(devicePath))
+                return false;
+                
             return devicePath.ToLower().Contains("vid_054c&pid_0ce6") || 
-                   devicePath.ToLower().Contains("dualsense");
+                devicePath.ToLower().Contains("dualsense");
         }
         
         /// <summary>
         /// Gets the serial number of a device
         /// </summary>
-        private static string GetSerialNumber(string devicePath)
+        private static string GetSerialNumber(string? devicePath)
         {
-            // TODO: Implement proper serial number retrieval
-            // For now, generate a unique ID based on the device path
+            if (string.IsNullOrEmpty(devicePath))
+                return "UNKNOWN";
+                
             return $"DS-{Math.Abs(devicePath.GetHashCode() % 1000000):D6}";
         }
         
@@ -226,8 +242,9 @@ namespace DSRL.Core.Controllers
         /// </summary>
         internal class ControllerInfo
         {
-            public string DevicePath { get; set; }
-            public string SerialNumber { get; set; }
+            // Initialize string properties with empty strings
+            public string DevicePath { get; set; } = string.Empty;
+            public string SerialNumber { get; set; } = string.Empty;
             public bool IsWireless { get; set; }
             public IntPtr DeviceHandle { get; set; } = IntPtr.Zero;
             
@@ -236,6 +253,40 @@ namespace DSRL.Core.Controllers
             public int DeadzoneRadius { get; set; } = 10;
             public int LeftTriggerRigidity { get; set; } = 50;
             public int RightTriggerRigidity { get; set; } = 50;
+
+            /// <summary>
+            /// Converts the internal ControllerInfo to a public DTO
+            /// </summary>
+            public ControllerInfoDTO ToDTO()
+            {
+                return new ControllerInfoDTO
+                {
+                    SerialNumber = this.SerialNumber,
+                    IsWireless = this.IsWireless,
+                    DeadzoneShape = this.DeadzoneShape,
+                    DeadzoneRadius = this.DeadzoneRadius,
+                    LeftTriggerRigidity = this.LeftTriggerRigidity,
+                    RightTriggerRigidity = this.RightTriggerRigidity
+                };
+            }
+
+            /// <summary>
+            /// Creates an internal ControllerInfo from a public DTO
+            /// </summary>
+            public static ControllerInfo FromDTO(ControllerInfoDTO dto, string? devicePath = null, IntPtr handle = default)
+            {
+                return new ControllerInfo
+                {
+                    DevicePath = devicePath ?? string.Empty,
+                    SerialNumber = dto.SerialNumber,
+                    IsWireless = dto.IsWireless,
+                    DeadzoneShape = dto.DeadzoneShape,
+                    DeadzoneRadius = dto.DeadzoneRadius,
+                    LeftTriggerRigidity = dto.LeftTriggerRigidity,
+                    RightTriggerRigidity = dto.RightTriggerRigidity,
+                    DeviceHandle = handle
+                };
+            }
         }
     }
     
@@ -251,37 +302,59 @@ namespace DSRL.Core.Controllers
         /// <summary>
         /// Sets the controller info for a DualSenseController
         /// </summary>
-        public static void SetControllerInfo(this DualSenseController controller, DualSenseAPI.ControllerInfo info)
+        public static void SetControllerInfo(this DualSenseController controller, ControllerInfoDTO dto)
         {
-            controllerInfoMap[controller.SerialNumber] = info;
+            // Check if we already have info for this controller
+            if (controllerInfoMap.TryGetValue(controller.SerialNumber, out var existingInfo))
+            {
+                // Update existing info with new values, preserving device path and handle
+                var updatedInfo = DualSenseAPI.ControllerInfo.FromDTO(
+                    dto, 
+                    existingInfo.DevicePath, 
+                    existingInfo.DeviceHandle);
+                    
+                controllerInfoMap[controller.SerialNumber] = updatedInfo;
+            }
+            else
+            {
+                // Create new info
+                var newInfo = DualSenseAPI.ControllerInfo.FromDTO(dto);
+                controllerInfoMap[controller.SerialNumber] = newInfo;
+            }
             
-            // Set initial values from the stored info
-            controller.DeadzoneShape = info.DeadzoneShape;
-            controller.DeadzoneRadius = info.DeadzoneRadius;
-            controller.LeftTriggerRigidity = info.LeftTriggerRigidity;
-            controller.RightTriggerRigidity = info.RightTriggerRigidity;
+            // Set initial values from the DTO
+            controller.DeadzoneShape = dto.DeadzoneShape;
+            controller.DeadzoneRadius = dto.DeadzoneRadius;
+            controller.LeftTriggerRigidity = dto.LeftTriggerRigidity;
+            controller.RightTriggerRigidity = dto.RightTriggerRigidity;
         }
         
         /// <summary>
         /// Gets the controller info for a DualSenseController
         /// </summary>
-        public static DualSenseAPI.ControllerInfo GetControllerInfo(this DualSenseController controller)
+        public static ControllerInfoDTO? GetControllerInfo(this DualSenseController controller)
         {
             if (controllerInfoMap.TryGetValue(controller.SerialNumber, out var info))
             {
-                return info;
+                return info.ToDTO();
             }
             
             return null;
         }
-        
+
+        // And fix other potential null reference issues:
+
         /// <summary>
         /// Apply settings to the controller
         /// </summary>
         public static bool ApplySettingsToDevice(this DualSenseController controller)
         {
-            var info = controller.GetControllerInfo();
-            if (info == null) return false;
+            // Get the internal controller info
+            if (string.IsNullOrEmpty(controller.SerialNumber) || 
+                !controllerInfoMap.TryGetValue(controller.SerialNumber, out var info))
+            {
+                return false;
+            }
             
             // Update controller info with current settings
             info.DeadzoneShape = controller.DeadzoneShape;
@@ -367,8 +440,6 @@ namespace DSRL.Core.Controllers
             // DualSense trigger effect modes
             const byte EffectMode_NoResistance = 0;
             const byte EffectMode_Continuous = 1;
-            const byte EffectMode_Section = 2;
-            const byte EffectMode_Vibration = 0x26;
             
             // Report size depends on connection type
             int reportSize = info.IsWireless ? 78 : 48;
