@@ -1,0 +1,132 @@
+{
+  "version": 3,
+  "targets": {
+    "net9.0-windows7.0": {
+      "HidSharp/2.1.0": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/HidSharp.dll": {
+            "related": ".pdb;.XML"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/HidSharp.dll": {
+            "related": ".pdb;.XML"
+          }
+        }
+      },
+      "DSRL.Core/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "HidSharp": "2.1.0"
+        },
+        "compile": {
+          "bin/placeholder/DSRL.Core.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/DSRL.Core.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "HidSharp/2.1.0": {
+      "sha512": "UTdxWvbgp2xzT1Ajaa2va+Qi3oNHJPasYmVhbKI2VVdu1VYP6yUG+RikhsHvpD7iM0S8e8UYb5Qm/LTWxx9QAA==",
+      "type": "package",
+      "path": "hidsharp/2.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "HidSharp.chm",
+        "hidsharp.2.1.0.nupkg.sha512",
+        "hidsharp.nuspec",
+        "lib/net35/HidSharp.XML",
+        "lib/net35/HidSharp.dll",
+        "lib/net35/HidSharp.pdb",
+        "lib/netstandard2.0/HidSharp.XML",
+        "lib/netstandard2.0/HidSharp.dll",
+        "lib/netstandard2.0/HidSharp.pdb"
+      ]
+    },
+    "DSRL.Core/1.0.0": {
+      "type": "project",
+      "path": "../DSRL.Core/DSRL.Core.csproj",
+      "msbuildProject": "../DSRL.Core/DSRL.Core.csproj"
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net9.0-windows7.0": [
+      "DSRL.Core >= 1.0.0"
+    ]
+  },
+  "packageFolders": {
+    "C:\\Users\\guill\\.nuget\\packages\\": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "G:\\Coding Folders\\06. DSRL\\dsrl\\DSRL.UI\\DSRL.UI.csproj",
+      "projectName": "DSRL.UI",
+      "projectPath": "G:\\Coding Folders\\06. DSRL\\dsrl\\DSRL.UI\\DSRL.UI.csproj",
+      "packagesPath": "C:\\Users\\guill\\.nuget\\packages\\",
+      "outputPath": "G:\\Coding Folders\\06. DSRL\\dsrl\\DSRL.UI\\obj\\",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "C:\\Users\\guill\\AppData\\Roaming\\NuGet\\NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net9.0-windows"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net9.0-windows7.0": {
+          "targetAlias": "net9.0-windows",
+          "projectReferences": {
+            "G:\\Coding Folders\\06. DSRL\\dsrl\\DSRL.Core\\DSRL.Core.csproj": {
+              "projectPath": "G:\\Coding Folders\\06. DSRL\\dsrl\\DSRL.Core\\DSRL.Core.csproj"
+            }
+          }
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "9.0.200"
+    },
+    "frameworks": {
+      "net9.0-windows7.0": {
+        "targetAlias": "net9.0-windows",
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          },
+          "Microsoft.WindowsDesktop.App.WindowsForms": {
+            "privateAssets": "none"
+          }
+        },
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.202/PortableRuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}

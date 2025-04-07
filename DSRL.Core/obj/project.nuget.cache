@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "MVQLdRNFYxI=",
+  "success": true,
+  "projectFilePath": "G:\\Coding Folders\\06. DSRL\\dsrl\\DSRL.Core\\DSRL.Core.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\guill\\.nuget\\packages\\hidsharp\\2.1.0\\hidsharp.2.1.0.nupkg.sha512"
+  ],
+  "logs": []
+}

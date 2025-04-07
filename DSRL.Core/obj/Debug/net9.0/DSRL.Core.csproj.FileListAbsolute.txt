@@ -1,0 +1,5 @@
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.csproj.AssemblyReference.cache
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.GeneratedMSBuildEditorConfig.editorconfig
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.AssemblyInfoInputs.cache
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.AssemblyInfo.cs
+G:\Coding Folders\06. DSRL\dsrl\DSRL.Core\obj\Debug\net9.0\DSRL.Core.csproj.CoreCompileInputs.cache
