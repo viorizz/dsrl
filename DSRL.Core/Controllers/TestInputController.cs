@@ -66,8 +66,17 @@ namespace DSRL.Core.Controllers
         /// <summary>
         /// Simulation thread procedure
         /// </summary>
+        // In TestInputController.cs, modify the SimulationThreadProc method
         private void SimulationThreadProc()
         {
+            // Simulate a centered joystick initially
+            _controller.UpdateInputState(
+                new Point(0, 0),    // Centered left stick
+                new Point(0, 0),    // Centered right stick
+                0,                  // No L2 pressure
+                0                   // No R2 pressure
+            );
+            
             long startTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
             
             while (_isRunning)
@@ -88,20 +97,20 @@ namespace DSRL.Core.Controllers
                     int leftTriggerValue = (int)((Math.Sin(triggerPhase) + 1) / 2 * 255); // 0-255 range
                     int rightTriggerValue = (int)((Math.Sin(triggerPhase + Math.PI) + 1) / 2 * 255); // 0-255 range, opposite phase
                     
-                    // Update controller state
+                    // Update controller state immediately
                     _controller.UpdateInputState(
-                        new Point(joystickX, joystickY),   // Left stick
-                        new Point(0, 0),                   // Right stick (not moving)
-                        leftTriggerValue,
+                        new Point(joystickX, joystickY),
+                        new Point(0, 0),
+                        leftTriggerValue, 
                         rightTriggerValue);
                     
-                    // Small delay
-                    Thread.Sleep(SIMULATION_INTERVAL_MS);
+                    // Very small delay - just enough to not overwhelm the CPU
+                    Thread.Sleep(1);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error in test input simulation: {ex.Message}");
-                    Thread.Sleep(500);
+                    Thread.Sleep(100);
                 }
             }
         }

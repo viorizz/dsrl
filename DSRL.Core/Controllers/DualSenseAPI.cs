@@ -19,7 +19,8 @@ namespace DSRL.Core.Controllers
         public int DeadzoneRadius { get; set; } = 10;
         public int LeftTriggerRigidity { get; set; } = 50;
         public int RightTriggerRigidity { get; set; } = 50;
-}
+    }
+    
     /// <summary>
     /// Handles low-level communication with DualSense controllers
     /// </summary>
@@ -96,12 +97,6 @@ namespace DSRL.Core.Controllers
         // Cache of identified controllers
         private static Dictionary<string, ControllerInfo> controllerCache = new Dictionary<string, ControllerInfo>();
         
-        
-        /// <returns>List of DualSenseController objects</returns>
-        // A more reliable approach using HidSharp directly
-
-        // Add this method to DualSenseAPI.cs
-
         /// <summary>
         /// Detects controllers based on exact patterns found in diagnostic
         /// </summary>
@@ -201,6 +196,7 @@ namespace DSRL.Core.Controllers
             
             return false;
         }
+        
         /// <summary>
         /// Gets the serial number of a device
         /// </summary>
@@ -317,8 +313,6 @@ namespace DSRL.Core.Controllers
             return null;
         }
 
-        // And fix other potential null reference issues:
-
         /// <summary>
         /// Apply settings to the controller
         /// </summary>
@@ -328,6 +322,7 @@ namespace DSRL.Core.Controllers
             if (string.IsNullOrEmpty(controller.SerialNumber) || 
                 !controllerInfoMap.TryGetValue(controller.SerialNumber, out var info))
             {
+                Console.WriteLine("Failed to find controller info for serial: " + controller.SerialNumber);
                 return false;
             }
             
@@ -339,32 +334,66 @@ namespace DSRL.Core.Controllers
             
             try
             {
+                bool hasActiveReader = false;
+                try
+                {
+                    // Try to call HasActiveInputReader if it exists
+                    hasActiveReader = controller.HasActiveInputReader();
+                }
+                catch
+                {
+                    // If method doesn't exist, continue with fallback
+                    hasActiveReader = false;
+                }
+                
+                if (hasActiveReader)
+                {
+                    // Log the attempt
+                    Console.WriteLine($"Applying settings using active input reader for {controller.SerialNumber}");
+                    
+                    // Create and send the report to set trigger effects
+                    byte[] report = CreateTriggerEffectReport(info);
+                    if (!SendReportViaInputStream(controller, report))
+                    {
+                        Console.WriteLine("Failed to send report via input stream");
+                        // Fall back to direct device handle method
+                    }
+                    else
+                    {
+                        Console.WriteLine("Settings applied successfully via input stream");
+                        return true;
+                    }
+                }
+                
+                // Use the original code path (open device, send report, close)
+                Console.WriteLine($"Applying settings using direct device handle for {controller.SerialNumber}");
+                
                 // Open the device if not already open
                 if (info.DeviceHandle == IntPtr.Zero || info.DeviceHandle == new IntPtr(-1))
                 {
                     info.DeviceHandle = OpenDevice(info.DevicePath);
                     if (info.DeviceHandle == IntPtr.Zero || info.DeviceHandle == new IntPtr(-1))
                     {
+                        Console.WriteLine("Failed to open device handle");
                         return false;
                     }
                 }
                 
                 // Create and send the report to set trigger effects
-                byte[] report = CreateTriggerEffectReport(info);
-                if (!SendReport(info.DeviceHandle, report))
+                byte[] directReport = CreateTriggerEffectReport(info);
+                if (!SendReport(info.DeviceHandle, directReport))
                 {
                     CloseDevice(info);
+                    Console.WriteLine("Failed to send report");
                     return false;
                 }
                 
-                // Create and send the report to set deadzone
-                // This would typically be handled by the game or system, not through the controller directly
-                // For demonstration purposes, we'll just return success
-                
+                Console.WriteLine("Settings applied successfully via direct handle");
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Exception in ApplySettingsToDevice: {ex.Message}");
                 CloseDevice(info);
                 return false;
             }
@@ -405,6 +434,16 @@ namespace DSRL.Core.Controllers
             uint bytesWritten = 0;
             return WriteFile(deviceHandle, report, (uint)report.Length, out bytesWritten, IntPtr.Zero) && 
                    bytesWritten == report.Length;
+        }
+        
+        /// <summary>
+        /// Send a report using the active input stream
+        /// </summary>
+        private static bool SendReportViaInputStream(DualSenseController controller, byte[] report)
+        {
+            // This is a placeholder method - you would implement this to use the active input stream
+            // For now, return false to use the fallback method
+            return false;
         }
         
         /// <summary>

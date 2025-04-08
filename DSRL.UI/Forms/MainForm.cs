@@ -89,8 +89,8 @@ namespace DSRL.UI.Forms
             this.MainMenuStrip = menuStrip;
 
             // Form settings
-            this.Text = "DSRL - DualSense Controller Manager";
-            this.Size = new Size(600, 540); // Made taller for new buttons
+            this.Text = "DSRL - DualSense Response Loader";
+            this.Size = new Size(600, 550); // Made taller for new buttons
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -107,14 +107,14 @@ namespace DSRL.UI.Forms
             // Controller selector section
             Label controllerLabel = new Label
             {
-                Location = new Point(10, 15),
+                Location = new Point(10, 25),
                 Size = new Size(150, 20),
                 Text = "Select Controller:"
             };
             
             controllerSelector = new ComboBox
             {
-                Location = new Point(160, 15),
+                Location = new Point(160, 25),
                 Size = new Size(140, 25),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -123,7 +123,7 @@ namespace DSRL.UI.Forms
             // Diagnostic button
             diagnosticButton = new Button
             {
-                Location = new Point(310, 15),
+                Location = new Point(310, 25),
                 Size = new Size(150, 25),
                 Text = "Run HID Diagnostic"
             };
@@ -132,7 +132,7 @@ namespace DSRL.UI.Forms
             // Refresh button
             refreshButton = new Button
             {
-                Location = new Point(470, 15),
+                Location = new Point(470, 25),
                 Size = new Size(100, 25),
                 Text = "Refresh"
             };
@@ -460,22 +460,39 @@ namespace DSRL.UI.Forms
                     Logger.Log("No controllers detected");
                     
                     // If we're debugging, add a mock controller
+                    // In MainForm.cs, modify the debug controller setup
                     if (System.Diagnostics.Debugger.IsAttached)
                     {
-                        connectedControllers.Add(new DualSenseController
-                        {
-                            SerialNumber = "DEMO123456",
-                            IsConnected = true,
-                            DeadzoneShape = DeadzoneShape.Circle,
-                            DeadzoneRadius = 10,
-                            LeftTriggerRigidity = 50,
-                            RightTriggerRigidity = 50
-                        });
+                        // Create a timer to simulate input without HID
+                        System.Windows.Forms.Timer debugTimer = new System.Windows.Forms.Timer();
+                        debugTimer.Interval = 16;
                         
-                        controllerSelector.Items.Add($"DualSense Controller (DEMO123456) [DEBUG]");
-                        controllerSelector.SelectedIndex = 0;
-                        statusLabel.Text = "Debug mode: Using mock controller.";
-                        Logger.Log("Added debug mock controller");
+                        long startTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+                        debugTimer.Tick += (s, e) => {
+                            if (selectedController == null) return;
+                            
+                            long currentTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+                            long elapsedTime = currentTime - startTime;
+                            
+                            // Calculate joystick position - move in a circle
+                            double joystickAngle = (elapsedTime % 4000) * 2 * Math.PI / 4000;
+                            int joystickX = (int)(Math.Cos(joystickAngle) * 80);
+                            int joystickY = (int)(Math.Sin(joystickAngle) * 80);
+                            
+                            // Calculate trigger values
+                            double triggerPhase = (elapsedTime % 2000) * 2 * Math.PI / 2000;
+                            int leftTriggerValue = (int)((Math.Sin(triggerPhase) + 1) / 2 * 255);
+                            int rightTriggerValue = (int)((Math.Sin(triggerPhase + Math.PI) + 1) / 2 * 255);
+                            
+                            // Update controller state
+                            selectedController.SimulateInput(
+                            new Point(joystickX, joystickY),
+                            new Point(0, 0),
+                            leftTriggerValue,
+                            rightTriggerValue);
+                        };
+                        
+                        debugTimer.Start();
                     }
                 }
             }
@@ -577,14 +594,22 @@ namespace DSRL.UI.Forms
             }
         }
         
+        // In the MainForm.cs ApplySettings method, add detailed logging:
         private void ApplySettings()
         {
             if (selectedController != null)
             {
                 try
                 {
+                    Console.WriteLine($"Attempting to apply settings to controller: {selectedController.SerialNumber}");
+                    Console.WriteLine($"DeadzoneShape: {selectedController.DeadzoneShape}, DeadzoneRadius: {selectedController.DeadzoneRadius}");
+                    Console.WriteLine($"LeftTriggerRigidity: {selectedController.LeftTriggerRigidity}, RightTriggerRigidity: {selectedController.RightTriggerRigidity}");
+                    
                     // Apply settings to the actual controller
-                    if (selectedController.ApplySettings())
+                    bool success = selectedController.ApplySettings();
+                    Console.WriteLine($"ApplySettings result: {success}");
+                    
+                    if (success)
                     {
                         // Save the settings to the controller's profile
                         ConfigManager.Instance.SaveControllerProfile(
@@ -601,12 +626,15 @@ namespace DSRL.UI.Forms
                     }
                     else
                     {
+                        Console.WriteLine("Failed to apply settings - returned false");
                         statusLabel.Text = "Failed to apply settings to controller.";
                         Logger.Log($"Failed to apply settings to controller {selectedController.SerialNumber}");
                     }
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"Exception in ApplySettings: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                     Logger.LogError("Error applying settings", ex);
                     MessageBox.Show($"Error applying settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     statusLabel.Text = "Error applying settings to controller.";
@@ -614,6 +642,7 @@ namespace DSRL.UI.Forms
             }
         }
         
+        // In MainForm.cs, modify the DeadzonePreview_Paint method
         private void DeadzonePreview_Paint(object sender, PaintEventArgs e)
         {
             if (selectedController == null) return;
@@ -629,7 +658,7 @@ namespace DSRL.UI.Forms
             // Full joystick range
             g.DrawEllipse(Pens.LightGray, 0, 0, width - 1, height - 1);
             
-            // Deadzone visualization
+            // Deadzone visualization 
             float radiusPercentage = selectedController.DeadzoneRadius / 100.0f;
             int deadzoneSize = (int)(Math.Min(width, height) * radiusPercentage);
             
@@ -650,13 +679,15 @@ namespace DSRL.UI.Forms
                     break;
             }
             
-            // Current joystick position from controller input
-            int stickX = centerX + (int)(selectedController.LeftStickPosition.X / 100.0f * centerX);
-            int stickY = centerY + (int)(selectedController.LeftStickPosition.Y / 100.0f * centerY);
+            // Get stick position
+            Point stickPos = selectedController.LeftStickPosition;
             
-            // Keep within bounds
-            stickX = Math.Max(5, Math.Min(width - 5, stickX));
-            stickY = Math.Max(5, Math.Min(height - 5, stickY));
+            // Debug output
+            Console.WriteLine($"Drawing joystick at: {stickPos.X},{stickPos.Y}");
+            
+            // Current joystick position - scale from -100,100 to panel coordinates
+            int stickX = centerX + (int)(stickPos.X * (centerX - 5) / 100.0);
+            int stickY = centerY - (int)(stickPos.Y * (centerY - 5) / 100.0);
             
             // Draw joystick position
             g.FillEllipse(Brushes.Blue, stickX - 5, stickY - 5, 10, 10);
@@ -735,36 +766,52 @@ namespace DSRL.UI.Forms
             }
         }
         
+        // In MainForm.cs, modify the Controller_InputChanged method
         private void Controller_InputChanged(object sender, ControllerInputEventArgs e)
         {
-            // This method is called from a background thread, so we need to use BeginInvoke
-            // to update the UI safely from the UI thread
-            this.BeginInvoke(new Action(() =>
+            // Only update UI if form is visible and handle is created
+            if (!this.IsHandleCreated || this.IsDisposed) return;
+            
+            // Use Invoke instead of BeginInvoke for more immediate updates
+            try
             {
-                // Update deadzone preview
-                deadzonePreview.Invalidate();
-                
-                // Update trigger previews
-                UpdateTriggerPreviews(e.LeftTriggerValue, e.RightTriggerValue);
-            }));
+                this.Invoke((MethodInvoker)delegate
+                {
+                    // Only update UI components that are visible
+                    if (deadzonePreview.Visible && deadzonePreview.Parent.Visible)
+                    {
+                        deadzonePreview.Refresh(); // Immediate update
+                    }
+                    
+                    // Update trigger previews
+                    UpdateTriggerPreviews(e.LeftTriggerValue, e.RightTriggerValue);
+                });
+            }
+            catch (Exception ex)
+            {
+                // Quietly log errors
+                Console.WriteLine($"UI update error: {ex.Message}");
+            }
         }
-        
+
         private void UpdateTriggerPreviews(int leftValue, int rightValue)
         {
-            // Convert 0-255 range to 0-100
-            int leftPercent = (int)(leftValue / 255.0f * 100);
-            int rightPercent = (int)(rightValue / 255.0f * 100);
+            // Fast calculation for trigger heights
+            int leftHeight = leftTriggerPreview.Height * leftValue / 255;
+            int rightHeight = rightTriggerPreview.Height * rightValue / 255;
             
-            // Calculate height of fill bars (max height is parent height - 1)
-            int leftHeight = (int)((leftPercent / 100.0f) * (leftTriggerPreview.Height - 1));
-            int rightHeight = (int)((rightPercent / 100.0f) * (rightTriggerPreview.Height - 1));
+            // Update fill panels
+            if (leftTriggerFill.Height != leftHeight || leftTriggerFill.Top != leftTriggerPreview.Height - leftHeight - 1)
+            {
+                leftTriggerFill.Height = leftHeight;
+                leftTriggerFill.Top = leftTriggerPreview.Height - leftHeight - 1;
+            }
             
-            // Update fill panel heights and positions
-            leftTriggerFill.Height = leftHeight;
-            leftTriggerFill.Top = leftTriggerPreview.Height - leftHeight - 1;
-            
-            rightTriggerFill.Height = rightHeight;
-            rightTriggerFill.Top = rightTriggerPreview.Height - rightHeight - 1;
+            if (rightTriggerFill.Height != rightHeight || rightTriggerFill.Top != rightTriggerPreview.Height - rightHeight - 1)
+            {
+                rightTriggerFill.Height = rightHeight;
+                rightTriggerFill.Top = rightTriggerPreview.Height - rightHeight - 1;
+            }
         }
         
         // New diagnostic button handler

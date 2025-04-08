@@ -47,9 +47,10 @@ namespace DSRL.Core.Controllers
         /// <summary>
         /// Starts reading input from the controller
         /// </summary>
+        // In ControllerInputReader.cs
         public bool Start()
         {
-            if (_isRunning) return true; // Already running
+            if (_isRunning) return true;
             
             try
             {
@@ -61,9 +62,8 @@ namespace DSRL.Core.Controllers
                 var deviceList = DeviceList.Local;
                 foreach (var device in deviceList.GetHidDevices())
                 {
-                    if (device.DevicePath.Contains("vid_054c") && // Sony VID
-                        device.DevicePath.Contains("pid_0ce6") && // DualSense PID
-                        device.DevicePath.Contains("mi_03"))      // Interface 3 for input
+                    if (device.DevicePath.Contains("vid_054c") && 
+                        device.DevicePath.Contains("pid_0ce6"))
                     {
                         _hidDevice = device;
                         break;
@@ -72,14 +72,18 @@ namespace DSRL.Core.Controllers
                 
                 if (_hidDevice == null) return false;
                 
-                // Open the device for reading
-                _hidStream = _hidDevice.Open();
+                // Open the device for reading with low latency options
+                var openParameters = new OpenConfiguration();
+                openParameters.SetOption(OpenOption.Priority, OpenPriority.High);
+                openParameters.SetOption(OpenOption.Interruptible, false);
+                _hidStream = _hidDevice.Open(openParameters);
                 
                 // Start the reading thread
                 _isRunning = true;
                 _readThread = new Thread(ReadThreadProc)
                 {
-                    IsBackground = true
+                    IsBackground = true,
+                    Priority = ThreadPriority.AboveNormal
                 };
                 _readThread.Start();
                 
@@ -119,9 +123,13 @@ namespace DSRL.Core.Controllers
         /// <summary>
         /// Thread procedure for continuous reading
         /// </summary>
+        // In ControllerInputReader.cs, modify the ReadThreadProc method
         private void ReadThreadProc()
         {
-            byte[] inputReport = new byte[64]; // DualSense input report is typically 64 bytes
+            byte[] inputReport = new byte[64];
+            
+            // Set thread priority to give it more CPU time
+            Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
             
             while (_isRunning)
             {
@@ -129,19 +137,19 @@ namespace DSRL.Core.Controllers
                 {
                     if (_hidStream == null || !_hidStream.CanRead)
                     {
-                        Thread.Sleep(100);
+                        Thread.Sleep(1); // Shorter sleep when stream not available
                         continue;
                     }
                     
-                    // Read input report
+                    // Try to read the report with a very short timeout
                     int bytesRead = _hidStream.Read(inputReport);
                     
                     if (bytesRead > 0)
                     {
-                        // Process the input report
+                        // Process immediately
                         ProcessInputReport(inputReport);
                         
-                        // Update the controller state
+                        // Update the controller without delay
                         _controller.UpdateInputState(
                             _leftStickPosition,
                             _rightStickPosition,
@@ -149,43 +157,63 @@ namespace DSRL.Core.Controllers
                             _rightTriggerValue);
                     }
                     
-                    // Small delay to avoid hammering the CPU
-                    Thread.Sleep(10);
+                    // No sleep here - run as fast as possible
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error reading input: {ex.Message}");
-                    Thread.Sleep(500); // Longer delay after error
+                    Thread.Sleep(10); // Shorter sleep on error
                 }
             }
         }
-        
+                
         /// <summary>
         /// Processes an input report from the controller
         /// </summary>
+        // In ControllerInputReader.cs, modify the ProcessInputReport method
+        // In ControllerInputReader.cs
         private void ProcessInputReport(byte[] report)
         {
+            // Log the first 10 bytes of the report to understand structure
+            string reportBytes = "";
+            for (int i = 0; i < Math.Min(10, report.Length); i++)
+            {
+                reportBytes += $"{report[i]:X2} ";
+            }
+            Console.WriteLine($"Report bytes: {reportBytes}");
+            // DualSense has different byte offsets from what we initially assumed
+            // These values need to be adjusted based on the actual DualSense input report format
+            const int LX_OFFSET = 1;  // Adjust these offsets based on actual DualSense report format
+            const int LY_OFFSET = 2;
+            const int L2_OFFSET = 5;
+            const int R2_OFFSET = 6;
+            
             // Ensure we have enough data
-            if (report.Length < 6) return;
+            if (report.Length < 8) return;
             
-            // Parse stick positions (0-255 range) and convert to -100 to 100 range
-            int leftX = report[LEFT_STICK_X_OFFSET];
-            int leftY = report[LEFT_STICK_Y_OFFSET];
-            int rightX = report[RIGHT_STICK_X_OFFSET];
-            int rightY = report[RIGHT_STICK_Y_OFFSET];
+            // Get raw values - DualSense uses 0-255 range where 128 is center
+            byte rawLX = report[LX_OFFSET];
+            byte rawLY = report[LY_OFFSET];
+            byte rawL2 = report[L2_OFFSET];
+            byte rawR2 = report[R2_OFFSET];
             
-            // Convert 0-255 range to -100 to 100 range
-            _leftStickPosition = new Point(
-                (int)((leftX / 255.0 * 200) - 100),
-                (int)((leftY / 255.0 * 200) - 100));
-                
-            _rightStickPosition = new Point(
-                (int)((rightX / 255.0 * 200) - 100),
-                (int)((rightY / 255.0 * 200) - 100));
-                
-            // Parse trigger values (0-255 range)
-            _leftTriggerValue = report[LEFT_TRIGGER_OFFSET];
-            _rightTriggerValue = report[RIGHT_TRIGGER_OFFSET];
+            // Print raw values for debugging
+            Console.WriteLine($"Raw LX: {rawLX}, LY: {rawLY}, L2: {rawL2}, R2: {rawR2}");
+            
+            // Convert to -100 to 100 range with proper centering
+            int lx = (int)((rawLX - 128) / 127.0 * 100);
+            int ly = (int)((rawLY - 128) / 127.0 * 100);
+            
+            // Ensure dead center when no input
+            if (Math.Abs(lx) < 5) lx = 0;
+            if (Math.Abs(ly) < 5) ly = 0;
+            
+            // Invert Y if needed (depends on DualSense mapping)
+            ly = -ly;
+            
+            _leftStickPosition = new Point(lx, ly);
+            _leftTriggerValue = rawL2;
+            _rightTriggerValue = rawR2;
         }
     }
 }

@@ -119,5 +119,10 @@ namespace DSRL.Core.Controllers
                     leftStick, rightStick, leftTrigger, rightTrigger));
             }
         }
+        public void SimulateInput(Point leftStick, Point rightStick, int leftTrigger, int rightTrigger)
+        {
+            // This method can be called from any assembly
+            UpdateInputState(leftStick, rightStick, leftTrigger, rightTrigger);
+        }
     }
 }
