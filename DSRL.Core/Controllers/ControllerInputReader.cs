@@ -215,5 +215,9 @@ namespace DSRL.Core.Controllers
             _leftTriggerValue = rawL2;
             _rightTriggerValue = rawR2;
         }
+        public bool IsRunning
+        {
+            get { return _isRunning; }
+        }
     }
 }

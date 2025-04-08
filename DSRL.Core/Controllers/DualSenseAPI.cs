@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using DSRL.Core.Enums;
+using DSRL.Core.Utilities;
 
 namespace DSRL.Core.Controllers
 {
@@ -95,14 +96,15 @@ namespace DSRL.Core.Controllers
         }
         
         // Cache of identified controllers
-        private static Dictionary<string, ControllerInfo> controllerCache = new Dictionary<string, ControllerInfo>();
+        internal static Dictionary<string, ControllerInfo> controllerCache = new Dictionary<string, ControllerInfo>();
         
         /// <summary>
         /// Detects controllers based on exact patterns found in diagnostic
         /// </summary>
+                // In DualSenseAPI.cs, improve GetTargetedControllers logging
         public static List<DualSenseController> GetTargetedControllers()
         {
-            Console.WriteLine("Starting targeted DualSense controller detection...");
+            Logger.Log("Starting targeted DualSense controller detection...");
             List<DualSenseController> controllers = new List<DualSenseController>();
             
             try
@@ -111,23 +113,24 @@ namespace DSRL.Core.Controllers
                 var deviceList = HidSharp.DeviceList.Local;
                 var hidDeviceList = deviceList.GetHidDevices().ToArray();
                 
-                Console.WriteLine($"Found {hidDeviceList.Length} HID devices");
+                Logger.Log($"Found {hidDeviceList.Length} HID devices");
                 
                 foreach (var device in hidDeviceList)
                 {
                     // Look specifically for DualSense pattern from diagnostic
                     if (device.VendorID == 0x054C && device.ProductID == 0x0CE6)
                     {
-                        Console.WriteLine($"Found potential DualSense: {device.DevicePath}");
+                        Logger.Log($"Found potential DualSense: {device.DevicePath}");
+                        Logger.Log($"Device details: VID={device.VendorID:X4}, PID={device.ProductID:X4}, MaxInputReportLength={device.GetMaxInputReportLength()}, MaxOutputReportLength={device.GetMaxOutputReportLength()}");
                         
                         // Check if path contains mi_03 which seems to be the interface we need
                         if (device.DevicePath.Contains("mi_03"))
                         {
-                            Console.WriteLine("🎮 FOUND DUALSENSE CONTROLLER ON INTERFACE 3!");
+                            Logger.Log("🎮 FOUND DUALSENSE CONTROLLER ON INTERFACE 3!");
                             
                             // Generate a unique serial number based on the device path
                             string serialNumber = $"DS-{Math.Abs(device.DevicePath.GetHashCode() % 1000000):D6}";
-                            
+                    
                             // Create controller info
                             var controllerInfo = new ControllerInfo
                             {
@@ -135,7 +138,28 @@ namespace DSRL.Core.Controllers
                                 SerialNumber = serialNumber,
                                 IsWireless = true // Most likely wireless
                             };
+
+                            // Store by serial number in both caches
+                            controllerCache[serialNumber] = controllerInfo;
+                            DualSenseControllerExtensions.controllerInfoMap[serialNumber] = controllerInfo;
                             
+                            // Try to open the device to verify access
+                            bool canOpen = false;
+                            try 
+                            {
+                                Logger.Log("Testing device access...");
+                                using (var stream = device.Open())
+                                {
+                                    canOpen = true;
+                                    Logger.Log("Successfully opened device for testing");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log($"Cannot open device: {ex.Message}");
+                            }
+                            
+                            Logger.Log($"Added controller info with serial: {serialNumber}, DevicePath: {device.DevicePath}, CanOpen: {canOpen}");
                             controllerCache[device.DevicePath] = controllerInfo;
                             
                             // Create a controller object
@@ -149,16 +173,17 @@ namespace DSRL.Core.Controllers
                             controller.SetControllerInfo(controllerInfo.ToDTO());
                             controllers.Add(controller);
                             
-                            Console.WriteLine($"Added controller with serial: {serialNumber}");
+                            Logger.Log($"Added controller with serial: {serialNumber}");
                         }
                     }
                 }
                 
-                Console.WriteLine($"Found {controllers.Count} DualSense controllers");
+                Logger.Log($"Found {controllers.Count} DualSense controllers");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in targeted detection: {ex.Message}");
+                Logger.Log($"Error in targeted detection: {ex.Message}");
+                Logger.Log($"Stack trace: {ex.StackTrace}");
             }
             
             return controllers;
@@ -267,7 +292,7 @@ namespace DSRL.Core.Controllers
     public static class DualSenseControllerExtensions
     {
         // Dictionary to store controller info
-        private static Dictionary<string, DualSenseAPI.ControllerInfo> controllerInfoMap = 
+        internal static Dictionary<string, DualSenseAPI.ControllerInfo> controllerInfoMap = 
             new Dictionary<string, DualSenseAPI.ControllerInfo>();
         
         /// <summary>
@@ -322,7 +347,7 @@ namespace DSRL.Core.Controllers
             if (string.IsNullOrEmpty(controller.SerialNumber) || 
                 !controllerInfoMap.TryGetValue(controller.SerialNumber, out var info))
             {
-                Console.WriteLine("Failed to find controller info for serial: " + controller.SerialNumber);
+                Logger.Log("Failed to find controller info for serial: " + controller.SerialNumber);
                 return false;
             }
             
@@ -332,68 +357,77 @@ namespace DSRL.Core.Controllers
             info.LeftTriggerRigidity = controller.LeftTriggerRigidity;
             info.RightTriggerRigidity = controller.RightTriggerRigidity;
             
+            // NEW: Check if device path is empty and try to recover it
+            if (string.IsNullOrEmpty(info.DevicePath) && 
+                DualSenseAPI.controllerCache.TryGetValue(controller.SerialNumber, out var cachedInfo))
+            {
+                info.DevicePath = cachedInfo.DevicePath;
+                Logger.Log($"Recovered device path from cache: {info.DevicePath}");
+            }
+            
             try
             {
-                bool hasActiveReader = false;
-                try
-                {
-                    // Try to call HasActiveInputReader if it exists
-                    hasActiveReader = controller.HasActiveInputReader();
-                }
-                catch
-                {
-                    // If method doesn't exist, continue with fallback
-                    hasActiveReader = false;
-                }
+                bool hasActiveReader = controller.HasActiveInputReader();
+                Logger.Log($"Controller has active reader: {hasActiveReader}");
                 
                 if (hasActiveReader)
                 {
                     // Log the attempt
-                    Console.WriteLine($"Applying settings using active input reader for {controller.SerialNumber}");
+                    Logger.Log($"Attempting to apply settings using active input reader for {controller.SerialNumber}");
                     
                     // Create and send the report to set trigger effects
                     byte[] report = CreateTriggerEffectReport(info);
                     if (!SendReportViaInputStream(controller, report))
                     {
-                        Console.WriteLine("Failed to send report via input stream");
+                        Logger.Log("Failed to send report via input stream");
                         // Fall back to direct device handle method
                     }
                     else
                     {
-                        Console.WriteLine("Settings applied successfully via input stream");
+                        Logger.Log("Settings applied successfully via input stream");
                         return true;
                     }
                 }
                 
                 // Use the original code path (open device, send report, close)
-                Console.WriteLine($"Applying settings using direct device handle for {controller.SerialNumber}");
+                Logger.Log($"Attempting to apply settings using direct device handle for {controller.SerialNumber}");
+                Logger.Log($"DevicePath: {info.DevicePath}");
                 
                 // Open the device if not already open
                 if (info.DeviceHandle == IntPtr.Zero || info.DeviceHandle == new IntPtr(-1))
                 {
+                    Logger.Log("Opening device handle...");
                     info.DeviceHandle = OpenDevice(info.DevicePath);
                     if (info.DeviceHandle == IntPtr.Zero || info.DeviceHandle == new IntPtr(-1))
                     {
-                        Console.WriteLine("Failed to open device handle");
+                        int errorCode = Marshal.GetLastWin32Error();
+                        Logger.Log($"Failed to open device handle. Error code: {errorCode}");
                         return false;
                     }
+                    Logger.Log($"Device handle opened: {info.DeviceHandle}");
                 }
                 
                 // Create and send the report to set trigger effects
+                Logger.Log("Creating trigger effect report...");
                 byte[] directReport = CreateTriggerEffectReport(info);
+                Logger.Log($"Report length: {directReport.Length}, First bytes: {BitConverter.ToString(directReport, 0, Math.Min(10, directReport.Length))}");
+                
+                Logger.Log("Sending report to device...");
                 if (!SendReport(info.DeviceHandle, directReport))
                 {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    Logger.Log($"Failed to send report. Error code: {errorCode}");
                     CloseDevice(info);
-                    Console.WriteLine("Failed to send report");
                     return false;
                 }
                 
-                Console.WriteLine("Settings applied successfully via direct handle");
+                Logger.Log("Settings applied successfully via direct handle");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception in ApplySettingsToDevice: {ex.Message}");
+                Logger.Log($"Exception in ApplySettingsToDevice: {ex.Message}");
+                Logger.Log($"Stack trace: {ex.StackTrace}");
                 CloseDevice(info);
                 return false;
             }

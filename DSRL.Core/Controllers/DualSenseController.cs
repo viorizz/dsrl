@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using DSRL.Core.Enums;
+using DSRL.Core.Utilities;
 
 namespace DSRL.Core.Controllers
 {
@@ -123,6 +124,28 @@ namespace DSRL.Core.Controllers
         {
             // This method can be called from any assembly
             UpdateInputState(leftStick, rightStick, leftTrigger, rightTrigger);
+        }
+        public bool HasActiveInputReader()
+        {
+            return _inputReader != null && _inputReader.IsRunning;
+        }
+        private static bool IsValidDevicePath(string devicePath)
+        {
+            if (string.IsNullOrEmpty(devicePath))
+            {
+                Logger.Log("Device path is null or empty");
+                return false;
+            }
+            
+            // Check if the path exists (for physical devices)
+            if (!devicePath.StartsWith(@"\\?\"))
+            {
+                Logger.Log($"Device path format doesn't match expected pattern: {devicePath}");
+                return false;
+            }
+            
+            Logger.Log($"Device path appears valid: {devicePath}");
+            return true;
         }
     }
 }
