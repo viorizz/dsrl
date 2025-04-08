@@ -46,10 +46,10 @@ namespace DSRL.Core.Controllers
         public int RightTriggerValue { get; private set; } = 0;
         
         // Input reader
-        private ControllerInputReader _inputReader;
+        private ControllerInputReader? _inputReader;
         
         // Events
-        public event EventHandler<ControllerInputEventArgs> InputChanged;
+        public event EventHandler<ControllerInputEventArgs>? InputChanged;
         
         /// <summary>
         /// Method to apply settings to the actual controller hardware

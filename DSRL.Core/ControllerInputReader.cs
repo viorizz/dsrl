@@ -23,11 +23,11 @@ namespace DSRL.Core.Controllers
         private readonly DualSenseController _controller;
         
         // Device variables
-        private HidDevice _hidDevice;
-        private HidStream _hidStream;
+        private HidDevice? _hidDevice;
+        private HidStream? _hidStream;
         
         // Thread for continuous reading
-        private Thread _readThread;
+        private Thread? _readThread;
         private bool _isRunning;
         
         // Last read values

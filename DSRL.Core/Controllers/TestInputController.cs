@@ -10,7 +10,7 @@ namespace DSRL.Core.Controllers
     public class TestInputController
     {
         private readonly DualSenseController _controller;
-        private Thread _simulationThread;
+        private Thread? _simulationThread;
         private bool _isRunning;
         
         // Simulation parameters
