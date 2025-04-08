@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("DualSense Controller Manager for Windows")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a40e7cbe1699edb357175f404e79bf68a711bde6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7b37143245efbdae512b193d9e6ce5a25267c52c")]
 [assembly: System.Reflection.AssemblyProductAttribute("DSRL.UI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DSRL.UI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

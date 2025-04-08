@@ -35,6 +35,18 @@ namespace DSRL.UI.Forms
         private Label rightTriggerValue;
         private Label statusLabel;
         
+        // New UI elements for trigger previews
+        private Panel leftTriggerFill;
+        private Panel rightTriggerFill;
+        private Panel leftTriggerPreview;
+        private Panel rightTriggerPreview;
+        
+        // Test input controller for debug mode
+        private TestInputController testInputController;
+        
+        // Status tracking
+        private bool isInputReadingActive = false;
+        
         public MainForm()
         {
             InitializeComponent();
@@ -244,21 +256,61 @@ namespace DSRL.UI.Forms
             };
             
             // Visual feedback panel for triggers
-            Panel leftTriggerPreview = new Panel
+            leftTriggerPreview = new Panel
             {
                 Location = new Point(40, 210),
                 Size = new Size(30, 100),
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.LightGray
+                BackColor = Color.White
             };
             
-            Panel rightTriggerPreview = new Panel
+            // Left trigger fill panel (shows current value)
+            leftTriggerFill = new Panel
+            {
+                Location = new Point(1, 99), // Bottom of parent
+                Size = new Size(28, 0),      // Height will be updated based on value
+                BackColor = Color.LightBlue
+            };
+            leftTriggerPreview.Controls.Add(leftTriggerFill);
+            
+            // Add L2 label to left trigger
+            Label l2Label = new Label
+            {
+                Text = "L2",
+                Location = new Point(0, 0),
+                Size = new Size(30, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
+            };
+            leftTriggerPreview.Controls.Add(l2Label);
+            
+            rightTriggerPreview = new Panel
             {
                 Location = new Point(180, 210),
                 Size = new Size(30, 100),
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.LightGray
+                BackColor = Color.White
             };
+            
+            // Right trigger fill panel (shows current value)
+            rightTriggerFill = new Panel
+            {
+                Location = new Point(1, 99), // Bottom of parent
+                Size = new Size(28, 0),      // Height will be updated based on value
+                BackColor = Color.LightBlue
+            };
+            rightTriggerPreview.Controls.Add(rightTriggerFill);
+            
+            // Add R2 label to right trigger
+            Label r2Label = new Label
+            {
+                Text = "R2",
+                Location = new Point(0, 0),
+                Size = new Size(30, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
+            };
+            rightTriggerPreview.Controls.Add(r2Label);
             
             // Alternative detection button
             alternativeDetectionButton = new Button
@@ -309,6 +361,9 @@ namespace DSRL.UI.Forms
             
             // Set initial UI state
             UpdateUIState(false);
+            
+            // Handle form closing to clean up controller input reading
+            this.FormClosing += (s, e) => StopControllerInputReading();
         }
         
         private void InitializeControllerWatcher()
@@ -351,6 +406,9 @@ namespace DSRL.UI.Forms
         
         private void RefreshControllerList()
         {
+            // Stop current controller input reading
+            StopControllerInputReading();
+            
             controllerSelector.Items.Clear();
             connectedControllers.Clear();
             
@@ -448,11 +506,17 @@ namespace DSRL.UI.Forms
                 rightTriggerValue.Text = $"{selectedController.RightTriggerRigidity}%";
                 
                 deadzonePreview.Invalidate(); // Redraw the deadzone preview
+                
+                // Start controller input reading
+                StartControllerInputReading();
             }
         }
         
         private void ControllerSelector_SelectedIndexChanged(object sender, EventArgs e)
         {
+            // Stop current controller input reading
+            StopControllerInputReading();
+            
             if (controllerSelector.SelectedIndex >= 0)
             {
                 selectedController = connectedControllers[controllerSelector.SelectedIndex];
@@ -586,8 +650,121 @@ namespace DSRL.UI.Forms
                     break;
             }
             
-            // Current joystick position (center for now)
-            g.FillEllipse(Brushes.Blue, centerX - 5, centerY - 5, 10, 10);
+            // Current joystick position from controller input
+            int stickX = centerX + (int)(selectedController.LeftStickPosition.X / 100.0f * centerX);
+            int stickY = centerY + (int)(selectedController.LeftStickPosition.Y / 100.0f * centerY);
+            
+            // Keep within bounds
+            stickX = Math.Max(5, Math.Min(width - 5, stickX));
+            stickY = Math.Max(5, Math.Min(height - 5, stickY));
+            
+            // Draw joystick position
+            g.FillEllipse(Brushes.Blue, stickX - 5, stickY - 5, 10, 10);
+        }
+        
+        // Controller input handling
+        
+        private void StartControllerInputReading()
+        {
+            if (selectedController != null && !isInputReadingActive)
+            {
+                // Subscribe to input events
+                selectedController.InputChanged += Controller_InputChanged;
+                
+                // Start reading input - use real input in release mode or test input in debug mode
+                bool success = false;
+                
+                if (System.Diagnostics.Debugger.IsAttached && 
+                    selectedController.SerialNumber == "DEMO123456")
+                {
+                    // Debug mode with test controller
+                    testInputController = new TestInputController(selectedController);
+                    success = testInputController.Start();
+                    
+                    if (success)
+                    {
+                        isInputReadingActive = true;
+                        statusLabel.Text = "Test input simulation started.";
+                        Logger.Log("Started test input simulation for demo controller");
+                    }
+                }
+                else
+                {
+                    // Normal mode with real controller
+                    success = selectedController.StartInputReading();
+                    
+                    if (success)
+                    {
+                        isInputReadingActive = true;
+                        statusLabel.Text = "Controller input reading started.";
+                        Logger.Log($"Started input reading for controller {selectedController.SerialNumber}");
+                    }
+                }
+                
+                if (!success)
+                {
+                    statusLabel.Text = "Failed to start controller input reading.";
+                    Logger.Log($"Failed to start input reading for controller {selectedController.SerialNumber}");
+                }
+            }
+        }
+        
+        private void StopControllerInputReading()
+        {
+            if (selectedController != null && isInputReadingActive)
+            {
+                // Unsubscribe from input events
+                selectedController.InputChanged -= Controller_InputChanged;
+                
+                // Stop reading input
+                if (testInputController != null)
+                {
+                    testInputController.Stop();
+                    testInputController = null;
+                    statusLabel.Text = "Test input simulation stopped.";
+                    Logger.Log("Stopped test input simulation");
+                }
+                else
+                {
+                    selectedController.StopInputReading();
+                    statusLabel.Text = "Controller input reading stopped.";
+                    Logger.Log($"Stopped input reading for controller {selectedController.SerialNumber}");
+                }
+                
+                isInputReadingActive = false;
+            }
+        }
+        
+        private void Controller_InputChanged(object sender, ControllerInputEventArgs e)
+        {
+            // This method is called from a background thread, so we need to use BeginInvoke
+            // to update the UI safely from the UI thread
+            this.BeginInvoke(new Action(() =>
+            {
+                // Update deadzone preview
+                deadzonePreview.Invalidate();
+                
+                // Update trigger previews
+                UpdateTriggerPreviews(e.LeftTriggerValue, e.RightTriggerValue);
+            }));
+        }
+        
+        private void UpdateTriggerPreviews(int leftValue, int rightValue)
+        {
+            // Convert 0-255 range to 0-100
+            int leftPercent = (int)(leftValue / 255.0f * 100);
+            int rightPercent = (int)(rightValue / 255.0f * 100);
+            
+            // Calculate height of fill bars (max height is parent height - 1)
+            int leftHeight = (int)((leftPercent / 100.0f) * (leftTriggerPreview.Height - 1));
+            int rightHeight = (int)((rightPercent / 100.0f) * (rightTriggerPreview.Height - 1));
+            
+            // Update fill panel heights and positions
+            leftTriggerFill.Height = leftHeight;
+            leftTriggerFill.Top = leftTriggerPreview.Height - leftHeight - 1;
+            
+            rightTriggerFill.Height = rightHeight;
+            rightTriggerFill.Top = rightTriggerPreview.Height - rightHeight - 1;
         }
         
         // New diagnostic button handler
@@ -691,6 +868,7 @@ namespace DSRL.UI.Forms
                 statusLabel.Text = "Error in alternative detection.";
             }
         }
+        
         private void TargetedDetectionButton_Click(object sender, EventArgs e)
         {
             try
